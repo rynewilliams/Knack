@@ -152,22 +152,25 @@ function LibraryGrid(books) {
 
 function QuoteEntry(bookId, quote) {
   const tags = quote.tags?.length
-    ? `<div class="tags">${quote.tags.map((tag) => `<span class="tag">#${escapeHtml(tag)}</span>`).join("")}</div>`
+    ? `<div class="quote-meta tags">${quote.tags.map((tag) => `<span>#${escapeHtml(tag)}</span>`).join("")}</div>`
     : "";
+  const metaDivider = tags ? `<span class="quote-meta-sep" aria-hidden="true">•</span>` : "";
 
   return `
-    <article class="quote-entry" data-quote-id="${quote.id}">
-      <blockquote><span class="quote-mark">❝</span>${escapeHtml(quote.text)}</blockquote>
-      <div class="quote-meta">${quote.page ? `Page ${escapeHtml(quote.page)}` : "Page not specified"}</div>
-      ${tags}
-      <div class="reflection">
-        <strong>Reflection</strong>
-        <p>${quote.reflection ? escapeHtml(quote.reflection) : "No reflection yet."}</p>
-      </div>
-      <button class="inline" data-action="edit-reflection" data-book-id="${bookId}" data-quote-id="${quote.id}">
-        ${quote.reflection ? "Edit Reflection" : "Add Reflection"}
-      </button>
-    </article>
+    <details class="quote-entry" data-quote-id="${quote.id}">
+      <summary class="quote-summary">
+        <div class="quote-main-row">
+          <span class="quote-toggle" aria-hidden="true"></span>
+          <blockquote><span class="quote-mark">❝</span>${escapeHtml(quote.text)}</blockquote>
+        </div>
+        <div class="quote-meta-row">
+          <div class="quote-meta">${quote.page ? `Page ${escapeHtml(quote.page)}` : "Page not specified"}</div>
+          ${metaDivider}
+          ${tags}
+        </div>
+      </summary>
+      <p class="quote-reflection">${quote.reflection ? escapeHtml(quote.reflection) : "No reflection yet."}</p>
+    </details>
   `;
 }
 
@@ -197,34 +200,51 @@ function BookPageLayout(book) {
     </article>
 
     <details class="notion-section" open>
-      <summary><span>🚀 The Book in 3 Sentences</span></summary>
+      <summary><span>The Book in 3 Sentences</span></summary>
       <ol>
         ${(book.summary3 || []).map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
       </ol>
     </details>
 
     <details class="notion-section" open>
-      <summary><span>🧠 Key Takeaways</span></summary>
+      <summary><span>Key Takeaways</span></summary>
       <ul>
         ${(book.takeaways || []).map((line) => `<li>${escapeHtml(line)}</li>`).join("")}
       </ul>
     </details>
 
     <details class="notion-section" open>
-      <summary><span>✍️ Memorable Quotes</span></summary>
+      <summary><span>Memorable Quotes</span></summary>
       ${AddQuoteButton()}
-      <form id="addQuoteForm" class="add-quote-form" hidden>
-        <textarea id="newQuoteText" rows="3" placeholder="Quote text" required></textarea>
-        <div class="row">
-          <input id="newQuotePage" placeholder="Page (optional)" />
-          <input id="newQuoteTags" placeholder="Tags (comma separated)" />
+      <div id="addQuoteModal" class="quote-modal-overlay" hidden>
+        <div class="quote-modal" role="dialog" aria-modal="true" aria-labelledby="addQuoteTitle">
+          <h3 id="addQuoteTitle">Add Quote</h3>
+          <form id="addQuoteForm" class="add-quote-form">
+            <label class="field-group field-priority">
+              <span>Quote Text</span>
+              <textarea id="newQuoteText" rows="3" placeholder="Capture the exact line that stood out" required></textarea>
+            </label>
+            <label class="field-group field-priority">
+              <span>Reflection</span>
+              <textarea id="newQuoteReflection" rows="2" placeholder="Why this matters to you"></textarea>
+            </label>
+            <div class="row row-meta">
+              <label class="field-group">
+                <span>Page Number (optional)</span>
+                <input id="newQuotePage" placeholder="e.g. 127" />
+              </label>
+              <label class="field-group">
+                <span>Tags (optional)</span>
+                <input id="newQuoteTags" placeholder="decision-making, behavior" />
+              </label>
+            </div>
+            <div class="row row-actions">
+              <button class="inline" id="cancelAddQuote" type="button">Cancel</button>
+              <button class="primary" type="submit">Save Quote</button>
+            </div>
+          </form>
         </div>
-        <textarea id="newQuoteReflection" rows="4" placeholder="Reflection (optional, but recommended)"></textarea>
-        <div class="row">
-          <button class="primary" type="submit">Save Quote</button>
-          <button class="inline" id="cancelAddQuote" type="button">Cancel</button>
-        </div>
-      </form>
+      </div>
       ${quoteList}
     </details>
   `;
@@ -433,18 +453,30 @@ function bindEvents() {
   }
 
   const toggleAddQuote = document.getElementById("toggleAddQuote");
+  const addQuoteModal = document.getElementById("addQuoteModal");
   const addQuoteForm = document.getElementById("addQuoteForm");
   const cancelAddQuote = document.getElementById("cancelAddQuote");
 
-  if (toggleAddQuote && addQuoteForm) {
+  if (toggleAddQuote && addQuoteModal) {
     toggleAddQuote.addEventListener("click", () => {
-      addQuoteForm.hidden = !addQuoteForm.hidden;
+      addQuoteModal.hidden = false;
+      document.body.classList.add("modal-open");
+      document.getElementById("newQuoteText")?.focus();
     });
   }
 
-  if (cancelAddQuote && addQuoteForm) {
+  if (cancelAddQuote && addQuoteModal) {
     cancelAddQuote.addEventListener("click", () => {
-      addQuoteForm.hidden = true;
+      addQuoteModal.hidden = true;
+      document.body.classList.remove("modal-open");
+    });
+  }
+
+  if (addQuoteModal) {
+    addQuoteModal.addEventListener("click", (event) => {
+      if (event.target !== addQuoteModal) return;
+      addQuoteModal.hidden = true;
+      document.body.classList.remove("modal-open");
     });
   }
 
@@ -474,6 +506,8 @@ function bindEvents() {
         createdAt: new Date().toISOString(),
       });
       book.lastReadAt = new Date().toISOString();
+      addQuoteModal.hidden = true;
+      document.body.classList.remove("modal-open");
       saveState();
       renderApp();
     });
